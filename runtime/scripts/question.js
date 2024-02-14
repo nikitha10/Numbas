@@ -984,7 +984,6 @@ Question.prototype = /** @lends Numbas.Question.prototype */
                 q.adviceDisplayed = qobj.adviceDisplayed;
                 q.answered = qobj.answered;
                 q.revealed = qobj.revealed;
-                q.submitted = qobj.submitted;
                 q.visited = qobj.visited;
                 q.score = qobj.score;
                 if(q.revealed) {
@@ -1051,11 +1050,6 @@ Question.prototype = /** @lends Numbas.Question.prototype */
      * @type {boolean}
      */
     answered: false,
-    /** Number of times this question has been submitted.
-     *
-     * @type {number}
-     */
-    submitted: 0,
     /** Has the advice been displayed?
      *
      * @type {boolean}
@@ -1360,9 +1354,6 @@ Question.prototype = /** @lends Numbas.Question.prototype */
         //displays warning messages if appropriate,
         //and returns false if any part is not completed sufficiently
         this.answered = this.validate();
-        //keep track of how many times question successfully submitted
-        if(this.answered)
-            this.submitted += 1;
         this.updateScore();
         if(this.exam && this.exam.adviceType == 'threshold' && 100*this.score/this.marks < this.adviceThreshold ) {
             this.getAdvice();

@@ -2294,6 +2294,8 @@ mark:
 
             async function() {
                 var e = Numbas.createExamFromJSON(exam_def,Numbas.store,false);
+                console.log(API_1484_11.GetValue('cmi.suspend_data').length);
+                console.log(Numbas.store.load(e));
                 e.load();
                 await e.signals.on('ready');
                 const q = e.questionList[0];
@@ -2304,7 +2306,7 @@ mark:
         assert.ok(Numbas.util.eq(run1.x, run2.x), `Variable x has the same value`);
         done();
     });
-    QUnit.test('Resume an exam',async function(assert) {
+    QUnit.test('cmi.completion_status is set to completed after ending',async function(assert) {
         var done = assert.async();
         var exam_def = { 
             name: "Exam", 

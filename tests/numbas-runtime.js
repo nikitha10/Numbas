@@ -23168,7 +23168,6 @@ Question.prototype = /** @lends Numbas.Question.prototype */
                 q.adviceDisplayed = qobj.adviceDisplayed;
                 q.answered = qobj.answered;
                 q.revealed = qobj.revealed;
-                q.submitted = qobj.submitted;
                 q.visited = qobj.visited;
                 q.score = qobj.score;
                 if(q.revealed) {
@@ -23235,11 +23234,6 @@ Question.prototype = /** @lends Numbas.Question.prototype */
      * @type {boolean}
      */
     answered: false,
-    /** Number of times this question has been submitted.
-     *
-     * @type {number}
-     */
-    submitted: 0,
     /** Has the advice been displayed?
      *
      * @type {boolean}
@@ -23544,9 +23538,6 @@ Question.prototype = /** @lends Numbas.Question.prototype */
         //displays warning messages if appropriate,
         //and returns false if any part is not completed sufficiently
         this.answered = this.validate();
-        //keep track of how many times question successfully submitted
-        if(this.answered)
-            this.submitted += 1;
         this.updateScore();
         if(this.exam && this.exam.adviceType == 'threshold' && 100*this.score/this.marks < this.adviceThreshold ) {
             this.getAdvice();
@@ -27047,9 +27038,9 @@ SCORMStorage.prototype = /** @lends Numbas.storage.SCORMStorage.prototype */ {
             duration: eobj.duration || 0 ,
             questionSubsets: eobj.questionSubsets,
             questionGroupOrder: eobj.questionGroupOrder,
-            start: eobj.start,
-            stop: eobj.stop,
-            score: score,
+            start: eobj.start || null,
+            stop: eobj.stop || null,
+            score: score || 0,
             currentQuestion: currentQuestion,
             diagnostic: eobj.diagnostic,
             questions: eobj.questions
@@ -27073,16 +27064,16 @@ SCORMStorage.prototype = /** @lends Numbas.storage.SCORMStorage.prototype */ {
             var index = this.questionIndices[id];
             var variables = this.loadVariables(qobj.variables, question.scope);
             return {
-                name: qobj.name,
+                name: qobj.name || "",
                 score: parseInt(this.get('objectives.'+index+'.score.raw') || 0,10),
-                visited: qobj.visited,
-                answered: qobj.answered,
-                submitted: qobj.submitted,
-                adviceDisplayed: qobj.adviceDisplayed,
-                revealed: qobj.revealed,
+                visited: qobj.visited || false,
+                answered: qobj.answered || false,
+                submitted: qobj.submitted || false,
+                adviceDisplayed: qobj.adviceDisplayed || false,
+                revealed: qobj.revealed || false,
                 variables: variables,
                 currentPart: qobj.currentPart,
-                parts: qobj.parts
+                parts: qobj.parts || []
             };
         } catch(e) {
             throw(new Numbas.Error('scorm.error loading question',{'number':question.number,message:e.message}));
@@ -27097,7 +27088,7 @@ SCORMStorage.prototype = /** @lends Numbas.storage.SCORMStorage.prototype */ {
     {
         try {
             var eobj = this.getSuspendData();
-            var pobj = eobj.questions[part.question.number];
+            var pobj = (eobj.questions || [])[part.question.number];
             var re = /(p|g|s)(\d+)/g;
             var m;
             while(m = re.exec(part.path))
@@ -27176,6 +27167,15 @@ SCORMStorage.prototype = /** @lends Numbas.storage.SCORMStorage.prototype */ {
                 } catch(e) {
                 }
             }
+
+            pobj.answered = pobj.answered || false;
+            pobj.stepsShown = pobj.stepsShown || false;
+            pobj.stepsOpen = pobj.stepsOpen || false;
+            pobj.name = pobj.name || "";
+            pobj.previousPart = pobj.previousPart || null;
+            pobj.pre_submit_cache = pobj.pre_submit_cache || [];
+            pobj.alternatives = pobj.alternatives || [];
+
             return pobj;
         } catch(e) {
             throw(new Numbas.Error('scorm.error loading part',{part:part.name,message:e.message}));
@@ -27452,6 +27452,16 @@ var storage = Numbas.storage = {
     stores: []
 };
 
+
+Numbas.storage.remove_default_keys = function(obj, defaults) {
+    Object.entries(defaults).forEach(function([k,v]) {
+        if((typeof v == 'object') ? JSON.stringify(obj[k])==JSON.stringify(v) : obj[k] === v) {
+            delete obj[k];
+        }
+    });
+    return obj;
+}
+
 /** A blank storage object which does nothing.
  *
  * Any real storage object needs to implement all of this object's methods.
@@ -27715,9 +27725,19 @@ Numbas.storage.BlankStorage.prototype = /** @lends Numbas.storage.BlankStorage.p
             stop: exam.stop ? exam.stop-0 : null,
             randomSeed: exam && exam.seed,
             student_name: exam.student_name, 
-            score:  exam.score,
-            max_score:  exam.mark,
+            score: exam.score,
+            max_score: exam.mark,
         };
+        eobj = storage.remove_default_keys(eobj, {
+            timeRemaining: 0,
+            timeSpent: 0,
+            duration: 0,
+            start: null,
+            stop: null,
+            student_name: "",
+            score: 0,
+            max_score: 0,
+        });
         if(exam.settings.navigateMode=='diagnostic') {
             eobj.diagnostic = this.diagnosticSuspendData();
         }
@@ -27768,12 +27788,21 @@ Numbas.storage.BlankStorage.prototype = /** @lends Numbas.storage.BlankStorage.p
             group: question.group.number,
             visited: question.visited,
             answered: question.answered,
-            submitted: question.submitted,
             adviceDisplayed: question.adviceDisplayed,
             revealed: question.revealed,
             score: question.score,
             max_score: question.marks
         };
+
+        qobj = storage.remove_default_keys(qobj, {
+            name: "",
+            visited: false,
+            answered: false,
+            adviceDisplayed: false,
+            revealed: false,
+            score: 0,
+            max_score: 0
+        });
 
         var scope = question.getScope();
 
@@ -27795,9 +27824,11 @@ Numbas.storage.BlankStorage.prototype = /** @lends Numbas.storage.BlankStorage.p
         });
         qobj.variables = this.variablesSuspendData(variables, scope);
 
-        qobj.parts = [];
-        for(var i=0;i<question.parts.length;i++) {
-            qobj.parts.push(this.partSuspendData(question.parts[i]));
+        if(question.parts.length) {
+            qobj.parts = [];
+            for(var i=0;i<question.parts.length;i++) {
+                qobj.parts.push(this.partSuspendData(question.parts[i]));
+            }
         }
 
         return qobj;
@@ -27857,6 +27888,17 @@ Numbas.storage.BlankStorage.prototype = /** @lends Numbas.storage.BlankStorage.p
             score: part.score,
             max_score: part.marks,
         };
+        pobj = storage.remove_default_keys(pobj, {
+            answered: false,
+            stepsShown: false,
+            stepsOpen: false,
+            name: "",
+            previousPart: null,
+            pre_submit_cache: [],
+            alternatives: [],
+            score: 0,
+            max_score: 0
+        });
         var typeStorage = this.getPartStorage(part);
         if(typeStorage) {
             var data = typeStorage.suspend_data(part, this);
@@ -27866,19 +27908,27 @@ Numbas.storage.BlankStorage.prototype = /** @lends Numbas.storage.BlankStorage.p
             pobj.student_answer = typeStorage.student_answer(part);
             pobj.correct_answer = typeStorage.correct_answer(part);
         }
-        pobj.steps = [];
-        for(var i=0;i<part.steps.length;i++)
-        {
-            pobj.steps.push(this.partSuspendData(part.steps[i]));
+        if(part.steps.length) {
+            pobj.steps = [];
+            for(var i=0;i<part.steps.length;i++)
+            {
+                pobj.steps.push(this.partSuspendData(part.steps[i]));
+            }
         }
-        pobj.nextParts = [];
-        for(var i=0;i<part.nextParts.length;i++) {
-            var np = part.nextParts[i];
-            pobj.nextParts.push({
-                instance: np.instance ? np.instance.path : null,
-                variableReplacements: np.instanceVariables ? this.variablesSuspendData(np.instanceVariables, part.getScope()) : null,
-                index: np.instance ? np.instance.index : null
-            });
+        if(part.nextParts.length) {
+            pobj.nextParts = [];
+            for(var i=0;i<part.nextParts.length;i++) {
+                var np = part.nextParts[i];
+                var npobj = {};
+                if(np.instance) {
+                    npobj.instance = np.instance.path;
+                    npobj.index = np.instance.index;
+                }
+                if(np.instanceVariables) {
+                    npobj.variableReplacements = this.variablesSuspendData(np.instanceVariables, part.getScope());
+                }
+                pobj.nextParts.push(npobj);
+            }
         }
         return pobj;
     },
