@@ -490,6 +490,9 @@ Numbas.queueScript('part-display',['display-util', 'display-base','util','jme'],
                 p.hideSteps();
             }
         }
+
+        var blurring = false;
+
         /** Event bindings.
          *
          * @member {object} inputEvents
@@ -510,8 +513,20 @@ Numbas.queueScript('part-display',['display-util', 'display-base','util','jme'],
             },
             blur: function() {
                 pd.hideWarnings();
+                
+                if(pd.isDirty()) {
+                    blurring = true;
+                    setTimeout(() => {
+                        if(!blurring) {
+                            return;
+                        }
+                        blurring = false;
+                        pd.controls.submit();
+                    },1);
+                }
             },
             focus: function() {
+                blurring = false;
                 pd.showWarnings();
             }
         };
