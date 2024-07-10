@@ -423,6 +423,22 @@ Copyright 2011-14 Newcastle University
 Numbas.queueScript('util',['base', 'math', 'parsel'],function() {
 /** @namespace Numbas.util */
 var util = Numbas.util = /** @lends Numbas.util */ {
+    /** Run the given function when the document is ready.
+     *
+     * @param {Function} fn
+     */
+    document_ready: function(fn) {
+        if(document.readyState == 'complete') {
+            setTimeout(fn, 1);
+        } else {
+            document.addEventListener('readystatechange', function(e) {
+                if(document.readyState == 'complete') {
+                    setTimeout(fn, 1);
+                }
+            });
+        }
+    },
+
     /** Derive type B from A (class inheritance, really)
      *
      * B's prototype supercedes A's.
@@ -26928,7 +26944,7 @@ Copyright 2011-14 Newcastle University
 // 'base' gives the third-party libraries on which Numbas depends
 Numbas.queueScript('base',['jquery','localisation','seedrandom','knockout','sarissa'],function() {
 });
-Numbas.queueScript('start-exam',['base','exam','settings'],function() {
+Numbas.queueScript('start-exam',['base','util', 'exam','settings'],function() {
     for(var name in Numbas.custom_part_types) {
         Numbas.partConstructors[name] = Numbas.parts.CustomPart;
     };
@@ -26957,7 +26973,7 @@ Numbas.queueScript('start-exam',['base','exam','settings'],function() {
      * @function
      */
     var init = Numbas.init = function() {
-        $(document).ready(function() {
+        Numbas.util.document_ready(function() {
             for(var x in Numbas.extensions) {
                 Numbas.activateExtension(x);
             }
@@ -26980,6 +26996,7 @@ Numbas.queueScript('start-exam',['base','exam','settings'],function() {
                 exam.entry = entry;
 
                 switch(entry) {
+                    case '':
                     case 'ab-initio':
                         job(exam.init,exam);
                         exam.signals.on('ready', function() {
