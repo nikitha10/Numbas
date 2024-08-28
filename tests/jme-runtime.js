@@ -8472,6 +8472,7 @@ var math = Numbas.math;
  * @typedef Numbas.jme.constant_definition
  * @property {TeX} tex - A TeX rendering of the constant
  * @property {Numbas.jme.token} value - The JME value of the constant.
+ * @property {boolean} enabled - Is the constant enabled? True by default.
  */
 
 
@@ -13204,11 +13205,14 @@ function find_valid_assignments(tree, scope, assignments, outtype) {
                 fns = fns.filter(fn => fn.outtype == '?' || fn.outtype == outtype);
             }
             out = [];
-            fns.forEach(function(fn) {
+            for(let fn of fns) {
                 /* For each definition of the function, find input types that it can work on.
                  * For each list of input types, check if the given arguments can produce that input type, and if so, how they change the variable type assignments.
                  */
                 let options = enumerate_signatures(fn.intype, tree.args.length).map(arg_types => {return {arg_types, sub_assignments: assignments}});
+                if(options.length==0) {
+                    continue;
+                }
                 /* TODO: group options by type of each arg */
                 tree.args.forEach((arg, i) => {
                     options = options.map(({arg_types, sub_assignments}) => {
@@ -13217,9 +13221,11 @@ function find_valid_assignments(tree, scope, assignments, outtype) {
                         return {arg_types, sub_assignments: arg_assignments};
                     }).filter(({arg_types, sub_assignments}) => sub_assignments !== false);
                 });
-                out = out.concat(options.map(({arg_types, sub_assignments}) => sub_assignments));
-            });
-            return out.length ? out[0] : false;
+                if(options.length > 0) {
+                    return options[0].sub_assignments;
+                }
+            };
+            return false;
         
         case 'name':
             const name = jme.normaliseName(tree.tok.name,scope);
@@ -14115,7 +14121,8 @@ var builtin_constants = Numbas.jme.builtin_constants = [
     {name: 'pi', value: new TNum(Math.PI), tex: '\\pi'},
     {name: 'i', value: new TNum(math.complex(0,1)), tex: 'i'},
     {name: 'infinity,infty', value: new TNum(Infinity), tex: '\\infty'},
-    {name: 'NaN', value: new TNum(NaN), tex: '\\texttt{NaN}'}
+    {name: 'NaN', value: new TNum(NaN), tex: '\\texttt{NaN}'},
+    {name: 'j', value: new TNum(math.complex(0,1)), tex: 'j', enabled: false},
 ];
 Numbas.jme.variables.makeConstants(Numbas.jme.builtin_constants, builtinScope);
 
@@ -15631,6 +15638,7 @@ jme.substituteTreeOps['for:'] = function(tree,scope,allowUnbound) {
      * @returns {Numbas.jme.tree}
      */
     function visit_for(arg) {
+        arg = {tok: arg.tok, args: arg.args.slice()};
         if(jme.isOp(arg.tok, 'for:')) {
             arg.args[0] = visit_for(arg.args[0]);
             arg.args[1] = visit_for(arg.args[1]);
@@ -19829,9 +19837,10 @@ jme.variables = /** @lends Numbas.jme.variables */ {
      *
      * @param {Array.<Numbas.jme.constant_definition>} definitions
      * @param {Numbas.jme.Scope} scope
+     * @param {Object.<boolean>} enabled - For each constant name, is it enabled? If not given, then the `enabled` value in the definition is used.
      * @returns {Array.<string>} - The names of constants added to the scope.
      */
-    makeConstants: function(definitions,scope) {
+    makeConstants: function(definitions, scope, enabled) {
         var defined_names = [];
         definitions.forEach(function(def) {
             var names = def.name.split(/\s*,\s*/);
@@ -19840,6 +19849,12 @@ jme.variables = /** @lends Numbas.jme.variables */ {
                 value = scope.evaluate(value+'');
             }
             names.forEach(function(name) {
+                var def_enabled = def.enabled === undefined || def.enabled;
+                var q_enabled = enabled !== undefined && (enabled[name] || (enabled[name]===undefined && def_enabled));
+                if(!(enabled===undefined ? def_enabled : q_enabled)) {
+                    scope.deleteConstant(name);
+                    return;
+                }
                 defined_names.push(jme.normaliseName(name,scope));
                 scope.setConstant(name,{value:value, tex:def.tex});
             });
