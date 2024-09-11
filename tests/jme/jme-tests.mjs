@@ -489,11 +489,19 @@ Numbas.queueScript('jme_tests',['qunit','jme','jme-rules','jme-display','jme-cal
         var n = new jme.types.TNum(33/2572780);
         n.value -= Math.pow(10,-17);
         n.precisionType = 'dp';
-        n.precision = -17;
+        n.precision = 17;
         var dn = jme.castToType(n, 'decimal').value;
         var edn = evaluate('precround(dec(33)/dec(2572780) - dec("1e-17"), 17)').value;
         assert.ok(dn.equals(edn), 'Number with precision set to 17 dp is converted to a decimal rounded to 17 dp');
-        assert.equal(dn+'', '0.00001282659224651');
+        assert.equal(dn+'', '0.00001282659224651', 'Evaluated number is given to 17 dp in string form');
+
+        var n = evaluate('precround(degrees(arcsin(4 sin(radians(40))/3)),2)');
+        var dn = jme.castToType(n, 'decimal').value;
+        assert.equal(dn+'', '58.99', 'Number rounded to 2 dp, when converted to decimal is still rounded to 2 dp');
+
+        var n = evaluate('siground(degrees(arcsin(4 sin(radians(40))/3))/1000,4)');
+        var dn = jme.castToType(n, 'decimal').value;
+        assert.equal(dn+'', '0.05899', 'Number rounded to 4 sig figs, when converted to decimal is still rounded to 4 sig figs');
     });
 
     QUnit.test('jme.enumerate_signatures', function(assert) {
@@ -1371,12 +1379,10 @@ Numbas.queueScript('jme_tests',['qunit','jme','jme-rules','jme-display','jme-cal
         let tree = Numbas.jme.compile('x for: x of: y')
         const scope = new Numbas.jme.Scope([Numbas.jme.builtinScope]);
         scope.evaluate(tree,{y: scope.evaluate('[1,2]')});
-        console.log(Numbas.jme.display.treeToJME(tree));
         deepCloseEqual(assert, scope.evaluate(tree, {y: scope.evaluate('[3,4]')}), scope.evaluate('[3,4]'));
 
         tree = Numbas.jme.compile('map(x,x,y)')
         scope.evaluate(tree,{y: scope.evaluate('[1,2]')});
-        console.log(Numbas.jme.display.treeToJME(tree));
         deepCloseEqual(assert, scope.evaluate(tree, {y: scope.evaluate('[3,4]')}), scope.evaluate('[3,4]'));
     });
 

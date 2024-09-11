@@ -11093,18 +11093,27 @@ var TNum = types.TNum = function(num) {
 function number_to_decimal(n, precisionType, precision) {
     var dp = 15;
     if(precisionType == 'dp' && isFinite(precision)) {
-        dp = Math.max(dp, -precision);
+        dp = precision;
+        dp = Math.min(dp, precision);
     }
     var re,im;
+    function round(x) {
+        switch(precisionType) {
+            case 'sigfig':
+                return x.toPrecision(precision);
+            default:
+                return x.toFixed(dp);
+        }
+    }
     if(n.complex) {
-        var re = n.re.toFixed(dp);
-        var im = n.im.toFixed(dp);
+        var re = round(n.re);
+        var im = round(n.im);
     } else {
         // If the original string value is kept, use that to avoid any precision lost when parsing it to a float.
         if(n.originalValue) {
             return new math.ComplexDecimal(new Decimal(n.originalValue));
         }
-        re = n.toFixed(dp);
+        re = round(n);
         im = 0;
     }
     return new math.ComplexDecimal(new Decimal(re), new Decimal(im));
@@ -33490,7 +33499,7 @@ NumberEntryPart.prototype = /** @lends Numbas.parts.NumberEntryPart.prototype */
             var size = Math.floor(Math.log10(Math.abs(minvalue.value)));
             minvalue = new jme.types.TNum(minvalue.value - Math.pow(10,size-12));
             minvalue.precisionType = 'dp';
-            minvalue.precision = size-12;
+            minvalue.precision = 12 - size;
         }
         minvalue = jme.castToType(minvalue,'decimal').value;
         settings.minvalue = minvalue;
@@ -33498,7 +33507,7 @@ NumberEntryPart.prototype = /** @lends Numbas.parts.NumberEntryPart.prototype */
             var size = Math.floor(Math.log10(Math.abs(maxvalue.value)));
             maxvalue = new jme.types.TNum(maxvalue.value + Math.pow(10,size-12));
             maxvalue.precisionType = 'dp';
-            maxvalue.precision = size-12;
+            maxvalue.precision = 12 - size;
         }
         maxvalue = jme.castToType(maxvalue,'decimal').value;
         settings.maxvalue = maxvalue;
